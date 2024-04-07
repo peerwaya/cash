@@ -1,0 +1,21 @@
+[package]
+name = "cash"
+version = "0.1.0"
+edition = "2018"
+license = "WTFPL"
+publish = false
+
+[features]
+no-entrypoint = []
+test-bpf = []
+
+[dependencies]
+solana-program = "~1.17.1"
+thiserror = "~1.0.49"  
+arrayref = "0.3.6"
+borsh = "0.10"
+bs58 = "0.5.0"
+spl-token = { version="~4.0.0", features = [ "no-entrypoint" ] }
+spl-associated-token-account = { version="2.2.0", features = [ "no-entrypoint" ] }
+[lib]
+crate-type = ["cdylib", "lib"]
