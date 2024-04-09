@@ -38,7 +38,7 @@ export type CashLinkDataArgs = {
   distributionType: CashLinkDistributionType;
   owner: number;
   lastRedeemedAt?: BN;
-  canceledAt?: BN;
+  expiresAt: BN;
   mint?: StringPublicKey;
   totalRedemptions: BN;
   maxNumRedemptions: BN;
@@ -80,7 +80,7 @@ export class CashLinkData extends Borsh.Data<CashLinkDataArgs> {
   distributionType: CashLinkDistributionType;
   owner: StringPublicKey;
   lastRedeemedAt: BN | null;
-  expiresAt: BN | null;
+  expiresAt: BN;
   mint?: StringPublicKey;
   totalRedemptions: number;
   maxNumRedemptions: number;
