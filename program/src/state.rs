@@ -5,6 +5,7 @@ pub mod redemption;
 
 pub const FLAG_ACCOUNT_SIZE: usize = 1;
 pub const FINGERPRINT_PREFIX: &'static str = "fingerprint";
+pub const REDEMPTION_PREFIX: &'static str = "redeem";
 /// Enum representing the account type managed by the program
 #[derive(Clone, Debug, PartialEq, Eq, BorshDeserialize, BorshSerialize, BorshSchema)]
 pub enum AccountType {
@@ -12,8 +13,6 @@ pub enum AccountType {
     Uninitialized,
     /// A cashlink account type
     CashLink,
-    /// A redemption account type
-    Redemption,
 }
 
 impl Default for AccountType {

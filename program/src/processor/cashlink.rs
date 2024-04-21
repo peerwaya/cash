@@ -6,7 +6,7 @@ use crate::{
     instruction::{CancelCashRedemptionArgs, InitCashLinkArgs, InitCashRedemptionArgs},
     math::SafeMath,
     state::{
-        cashlink::{CashLink, CashLinkState, DistributionType}, redemption::{Redemption, REDEMPTION_SIZE}, AccountType, FINGERPRINT_PREFIX, FLAG_ACCOUNT_SIZE
+        cashlink::{CashLink, CashLinkState, DistributionType}, REDEMPTION_PREFIX, AccountType, FINGERPRINT_PREFIX, FLAG_ACCOUNT_SIZE
     },
     utils::{
         assert_account_key, assert_initialized, assert_owned_by, assert_signer,
@@ -348,9 +348,6 @@ pub fn process_redemption(
     assert_signer(authority_info)?;
 
     let wallet_info = next_account_info(account_info_iter)?;
-
-
-
     let fee_token_info = next_account_info(account_info_iter)?;
     let cash_link_info = next_account_info(account_info_iter)?;
     let pass_info = next_account_info(account_info_iter)?;
@@ -477,13 +474,26 @@ pub fn process_redemption(
             Some(CashError::InvalidVaultTokenOwner),
         )?;
         let vault_token: TokenAccount = assert_initialized(vault_token_info)?;
-
+        let mint_info = next_account_info(account_info_iter)?;
+        if exists(recipient_token_info)? {
+            msg!("Cash link has a mint and an existing recipient token. Validate the recipient token");
+            let recipient_token: TokenAccount = assert_initialized(recipient_token_info)?;
+            assert_token_owned_by(&recipient_token, &wallet_info.key)?;
+            assert_owned_by(recipient_token_info, &spl_token::id())?;
+            //subtract rent_fee
+        } else {
+            msg!("Cash link has a mint. Create an associated token account for the recipient");
+            create_associated_token_account_raw(
+                fee_payer_info,
+                recipient_token_info,
+                wallet_info,
+                mint_info,
+                rent_info,
+            )?;
+        }
         if vault_token.amount < total {
             return Err(InsufficientSettlementFunds.into());
         }
-        let recipient_token: TokenAccount = assert_initialized(recipient_token_info)?;
-        assert_token_owned_by(&recipient_token, &wallet_info.key)?;
-
         let _: TokenAccount = assert_initialized(fee_token_info)?;
         if amount_to_redeem > 0 {
             spl_token_transfer(
@@ -567,15 +577,21 @@ pub fn process_redemption(
         **cash_link_info.lamports.borrow_mut() = source_starting_lamports;
     }
     let system_account_info = next_account_info(account_info_iter)?;
+    if redemption_info.lamports() > 0
+    && !redemption_info.data_is_empty()
+    {
+        msg!("Redemption AccountAlreadyInitialized");
+        return Err(ProgramError::AccountAlreadyInitialized);
+    }
     create_new_account_raw(
         program_id,
         redemption_info,
         rent_info,
         fee_payer_info,
         system_account_info,
-        REDEMPTION_SIZE,
+        FLAG_ACCOUNT_SIZE,
         &[
-            Redemption::PREFIX.as_bytes(),
+            REDEMPTION_PREFIX.as_bytes(),
             cash_link_info.key.as_ref(),
             wallet_info.key.as_ref(),
             &[args.redemption_bump],
@@ -617,13 +633,13 @@ pub fn process_redemption(
             return Err(CashError::FingerprintBumpNotFound.into());
         }
     }
-    let mut redemption = Redemption::unpack_unchecked(&redemption_info.data.borrow_mut())?;
-    redemption.account_type = AccountType::Redemption;
-    redemption.cash_link = *cash_link_info.key;
-    redemption.redeemed_at = clock.unix_timestamp as u64;
-    redemption.wallet = *wallet_info.key;
-    redemption.amount = amount_to_redeem;
-    Redemption::pack(redemption, &mut redemption_info.data.borrow_mut())?;
+    // let mut redemption = Redemption::unpack_unchecked(&redemption_info.data.borrow_mut())?;
+    // redemption.account_type = AccountType::Redemption;
+    // redemption.cash_link = *cash_link_info.key;
+    // redemption.redeemed_at = clock.unix_timestamp as u64;
+    // redemption.wallet = *wallet_info.key;
+    // redemption.amount = amount_to_redeem;
+    // Redemption::pack(redemption, &mut redemption_info.data.borrow_mut())?;
     cash_link.state = if cash_link.is_fully_redeemed()? {
         CashLinkState::Redeemed
     } else {

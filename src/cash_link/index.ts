@@ -12,6 +12,7 @@ import {
   RpcResponseAndContext,
   SignatureResult,
   ComputeBudgetProgram,
+  AccountInfo,
 } from '@solana/web3.js';
 import * as spl from '@solana/spl-token';
 import BN from 'bn.js';
@@ -34,7 +35,6 @@ import {
   RedeemCashLinkParams,
 } from '../transactions';
 import { Account } from '@metaplex-foundation/mpl-core';
-import { Redemption } from '../accounts/redemption';
 
 export const FAILED_TO_FIND_ACCOUNT = 'Failed to find account';
 export const INVALID_ACCOUNT_OWNER = 'Invalid account owner';
@@ -370,6 +370,7 @@ export class CashLinkClient {
       fingerprintEnabled,
       numDaysToExpire,
     } = params;
+    console.log('numDaysToExpire', numDaysToExpire);
     const data = InitCashLinkArgs.serialize({
       amount,
       feeBps,
@@ -539,43 +540,40 @@ export class CashLinkClient {
     const owner = new PublicKey(cashLink.data.owner);
     let accountKeys = [walletAddress, this.feeWallet, owner];
     let vaultToken: PublicKey | null = null;
+    let mint: PublicKey | null = null;
     if (cashLink.data.mint) {
-      const mint = new PublicKey(cashLink.data.mint);
+      mint = new PublicKey(cashLink.data.mint);
       vaultToken = await _findAssociatedTokenAddress(cashLinkAddress, mint);
-      accountKeys = (
-        await Promise.all([
-          spl.getOrCreateAssociatedTokenAccount(
-            this.connection,
-            this.feePayer,
-            new PublicKey(cashLink.data.mint),
-            accountKeys[0],
-            true,
-            input.commitment,
-          ),
-          spl.getOrCreateAssociatedTokenAccount(
+      accountKeys = await Promise.all([
+        _findAssociatedTokenAddress(walletAddress, mint),
+        spl
+          .getOrCreateAssociatedTokenAccount(
             this.connection,
             this.feePayer,
             new PublicKey(cashLink.data.mint),
             accountKeys[1],
             true,
             input.commitment,
-          ),
-          spl.getOrCreateAssociatedTokenAccount(
+          )
+          .then((acc) => acc.address),
+        spl
+          .getOrCreateAssociatedTokenAccount(
             this.connection,
             this.feePayer,
             new PublicKey(cashLink.data.mint),
             accountKeys[2],
             true,
             input.commitment,
-          ),
-        ])
-      ).map((acc) => acc.address);
+          )
+          .then((acc) => acc.address),
+      ]);
     }
     const [redemption, redemptionBump] = await CashProgram.findRedemptionAccount(
       cashLinkAddress,
       walletAddress,
     );
     const redeemInstruction = await this.redeemInstruction({
+      mint,
       redemption,
       cashLinkBump,
       passKey,
@@ -629,6 +627,11 @@ export class CashLinkClient {
         pubkey: params.vaultToken,
         isSigner: false,
         isWritable: true,
+      });
+      keys.push({
+        pubkey: params.mint,
+        isSigner: false,
+        isWritable: false,
       });
     }
     keys.push({
@@ -699,7 +702,7 @@ export class CashLinkClient {
   getCashLinkRedemption = async (
     address: PublicKey,
     commitment?: Commitment,
-  ): Promise<Redemption | null> => {
+  ): Promise<AccountInfo<Buffer> | null> => {
     try {
       return await _getCashLinkRedemptionAccount(this.connection, address, commitment);
     } catch (error) {
@@ -735,13 +738,13 @@ const _getCashLinkRedemptionAccount = async (
   connection: Connection,
   cashLinkAddress: PublicKey,
   commitment?: Commitment,
-): Promise<Redemption | null> => {
+): Promise<AccountInfo<Buffer> | null> => {
   try {
     const accountInfo = await connection.getAccountInfo(cashLinkAddress, commitment);
     if (accountInfo === null) {
       return null;
     }
-    return Redemption.from(new Account(cashLinkAddress, accountInfo));
+    return accountInfo;
   } catch (error) {
     return null;
   }

@@ -87,9 +87,10 @@ pub enum CashInstruction {
     /// 10. `[]` The recent slot hash account
     /// 11. `[writable][Optional]` The vault token account to get tokens. This value is Optional. if the mint is set, then this must be set.
     /// 12. `[writable][Optional]` The recipient token account for the token they will receive should the trade go through
-    /// 13. `[]` The system program
-    /// 14. `[writable][Optional]` The fingerprint info
-    /// 15. `[]` The token program
+    /// 13. `[][Optional]` The mint account for the token
+    /// 14. `[]` The system program
+    /// 15. `[writable][Optional]` The fingerprint info
+    /// 16. `[]` The token program
     Redeem(InitCashRedemptionArgs),
     /// Cancel the cash_link
     ///
@@ -209,6 +210,7 @@ pub fn redeem_cash_link(
     owner_token: &Pubkey,
     fee_payer: &Pubkey,
     fingerprint: Option<&Pubkey>,
+    mint: &Pubkey,
     args: InitCashRedemptionArgs
 ) -> Instruction {
     let mut accounts = vec![
@@ -228,6 +230,7 @@ pub fn redeem_cash_link(
     if let Some(key) = vault_token {
         accounts.push(AccountMeta::new(*wallet_token, false));
         accounts.push(AccountMeta::new(*key, false));
+        AccountMeta::new_readonly(*mint, false);
     }
     accounts.push(AccountMeta::new_readonly(system_program::id(), false));
     if let Some(fingerprint_id) = fingerprint {

@@ -36,4 +36,5 @@ export type RedeemCashLinkParams = {
   fingerprintPda?: PublicKey;
   fingerprint?: string;
   fingerprintBump?: number;
+  mint?: PublicKey;
 };
